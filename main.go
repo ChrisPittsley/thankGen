@@ -10,7 +10,8 @@ import (
 )
 
 type config struct {
-	out io.Writer
+	out string
+	writer io.Writer
 	template string
 	records [][]string
 }
@@ -21,9 +22,19 @@ func (cfg *config) setOutput(path string) error {
 	if err != nil {
 		return err
 	}
-	cfg.out, err = os.Create(path)
-	if err != nil {
-		return err
+	cfg.out = path
+	return nil
+}
+
+func (cfg *config) readyOutput() error {
+	var err error
+	if cfg.out != "" {
+		cfg.writer, err = os.Create(cfg.out)
+		if err != nil {
+			return err
+		}
+	} else {
+		cfg.writer = os.Stdout
 	}
 	return nil
 }
@@ -81,7 +92,7 @@ func main() {
 		for i := range record {
 			fill[i] = record[i]
 		}
-		fmt.Fprintf(cfg.out, cfg.template+"\n\n", fill...)
+		fmt.Fprintf(cfg.writer, cfg.template+"\n\n", fill...)
 	}
 }
 
@@ -93,21 +104,18 @@ func errOut(err error) {
 
 func setup(args []string) (config, error) {
 	var cfg config
-	var o bool
-	cfg.out = os.Stdout
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-o" {
 			i++
 			if i >= len(args) {
 				return cfg, fmt.Errorf("-o specified without filename")
 			}
-			if o {
+			if cfg.out != "" {
 				return cfg, fmt.Errorf("-o specified twice, output already set")
 			}
 			if err := cfg.setOutput(args[i]); err != nil {
 				return cfg, err
 			}
-			o = true
 			continue
 		}
 		switch filepath.Ext(args[i]) {
@@ -127,5 +135,5 @@ func setup(args []string) (config, error) {
 	if len(cfg.records) == 0 {
 		return cfg, fmt.Errorf("no table specified")
 	}
-	return cfg, nil
+	return cfg, cfg.readyOutput()
 }
